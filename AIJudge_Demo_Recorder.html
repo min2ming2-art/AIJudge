@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AIJudge Demo Recorder</title>
+  <style>
+    body{margin:0;background:#eef6f1;color:#183c2b;font-family:Segoe UI,Arial,sans-serif}main{max-width:760px;margin:45px auto;padding:34px;background:white;border-radius:22px;box-shadow:0 18px 50px #17452b1a}h1{margin:0;font-size:30px}p,li{line-height:1.7;color:#52655b}.notice{padding:15px;border-radius:12px;background:#fff8d9;color:#755d0b}.actions{display:flex;gap:12px;margin:24px 0}button{padding:14px 20px;border:0;border-radius:12px;font-weight:800;cursor:pointer}.start{background:#087544;color:white}.stop{background:#ffe8e3;color:#943e32}.stop:disabled{opacity:.45}.status{padding:14px;border:1px solid #cce3d6;border-radius:12px;background:#f5fbf7;font-weight:700}.timer{font-size:32px;color:#087544}.script{max-height:270px;overflow:auto;padding:16px;border-radius:12px;background:#f5f7f6;font-size:13px}.active{background:#e7f7ee!important;color:#075d38!important}
+  </style>
+</head>
+<body>
+<main>
+  <h1>AIJudge Demo Recorder</h1>
+  <p>This helper records your screen while an English voice narrates the demo. The finished video downloads automatically as <b>AIJudge_Demo.webm</b>.</p>
+  <div class="notice"><b>Before starting:</b> Open <a href="https://aijudge-sigma.vercel.app" target="_blank">AIJudge</a> in another tab, switch it to English, and prepare a public demo document. When the share dialog opens, choose <b>Entire screen</b> and enable <b>Share system audio</b>.</div>
+  <div class="actions"><button class="start" id="start">Start automatic recording</button><button class="stop" id="stop" disabled>Stop and download</button></div>
+  <div class="status"><span id="message">Ready</span><div class="timer" id="timer">00:00</div></div>
+  <h2>Narration sequence</h2>
+  <div class="script" id="script"></div>
+</main>
+<script>
+const parts = [
+  ['Show the AIJudge home screen.', 'Reading a document is not the same as explaining it under pressure. AI Judge turns documents into realistic speaking practice.', 2000],
+  ['Upload the demo document.', 'Upload a PDF, PowerPoint, or Word document. AI Judge analyzes its context and prepares focused questions.', 3500],
+  ['Select Exam and Cody Teacher.', 'Choose an interview, presentation, or exam, then select an evaluator with a distinct coaching style.', 3000],
+  ['Start practice and answer by voice.', 'Answer by voice or text. AI Judge measures response time, duration, pauses, rhythm, and filler words.', 9000],
+  ['Complete the remaining questions quickly.', 'Each evaluator responds differently and asks focused follow-up questions.', 11000],
+  ['Show the result and category scores.', 'GPT five point six evaluates understanding, evidence, logic, delivery, and persuasion, then gives model answers and three concrete practice goals.', 4500],
+  ['Scroll to the question-by-question STT cards.', 'For every question, users can review the transcript, suggested corrections, changed words, speaking habits, and answer duration.', 4500],
+  ['Show growth history and audience analysis.', 'Growth history helps users focus on improvement instead of a single score.', 3000],
+  ['Show the English interface or return to the top.', 'Codex helped build document parsing, multilingual support, secure API integration, voice analysis, responsive design, and rapid improvements from user testing.', 2500],
+  ['Finish on the AIJudge logo.', 'AI Judge does not only show mistakes. It shows how you can grow.', 1000]
+];
+const script = document.querySelector('#script');
+parts.forEach(([cue,text],i)=>script.insertAdjacentHTML('beforeend',`<p id="part-${i}"><b>${i+1}. ${cue}</b><br>${text}</p>`));
+let recorder, chunks=[], stream, timerId, startedAt;
+const startButton=document.querySelector('#start'), stopButton=document.querySelector('#stop'), message=document.querySelector('#message'), timer=document.querySelector('#timer');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+function speak(text){return new Promise(resolve=>{const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=1.05;const voices=speechSynthesis.getVoices();u.voice=voices.find(v=>/Zira|Aria|Jenny|Samantha|English.*United States/i.test(v.name+' '+v.lang))||voices.find(v=>v.lang.startsWith('en'))||null;u.onend=resolve;u.onerror=resolve;speechSynthesis.speak(u)})}
+async function narrate(){await wait(5000);for(let i=0;i<parts.length;i++){document.querySelectorAll('.script p').forEach(x=>x.classList.remove('active'));const row=document.querySelector(`#part-${i}`);row.classList.add('active');row.scrollIntoView({block:'nearest'});message.textContent=parts[i][0];await speak(parts[i][1]);await wait(parts[i][2])}message.textContent='Narration complete. Finishing video…';await wait(1200);finish()}
+function finish(){if(recorder&&recorder.state!=='inactive')recorder.stop();speechSynthesis.cancel();clearInterval(timerId);stream?.getTracks().forEach(t=>t.stop());startButton.disabled=false;stopButton.disabled=true}
+startButton.onclick=async()=>{try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:30},audio:true});if(!stream.getAudioTracks().length){stream.getTracks().forEach(t=>t.stop());alert('System audio was not shared. Start again, choose Entire screen, and enable Share system audio.');return}const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(MediaRecorder.isTypeSupported);recorder=new MediaRecorder(stream,{mimeType:mime});chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{const blob=new Blob(chunks,{type:mime});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='AIJudge_Demo.webm';a.click();message.textContent='Video downloaded. Upload it to YouTube as Public.'};recorder.start(1000);startedAt=Date.now();timerId=setInterval(()=>{const s=Math.floor((Date.now()-startedAt)/1000);timer.textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`},500);startButton.disabled=true;stopButton.disabled=false;message.textContent='Recording starts in five seconds. Switch to AIJudge now.';narrate()}catch(e){message.textContent='Recording was cancelled or blocked: '+e.message}};
+stopButton.onclick=finish;
+</script>
+</body>
+</html>
